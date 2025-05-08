@@ -28,53 +28,117 @@ This section of guide will help you learn how to use our DeepSpeed [training scr
 
 ## Configuration
 
-Start by running the following command to [create a DeepSpeed configuration file](https://huggingface.co/docs/accelerate/quicktour#launching-your-distributed-script) with 🤗 Accelerate. The `--config_file` flag allows you to save the configuration file to a specific location, otherwise it is saved as a `default_config.yaml` file in the 🤗 Accelerate cache.
+### Create DeepSpeed config with 🤗 Accelerate
+
+Start by running the following command to [create a DeepSpeed configuration file](https://huggingface.co/docs/accelerate/quicktour#launching-your-distributed-script) with 🤗 Accelerate. 
 
 The configuration file is used to set the default options when you launch the training script.
 
 ```bash
-accelerate config --config_file deepspeed_config.yaml
+accelerate config
 ```
 
-You'll be asked a few questions about your setup, and configure the following arguments. In this example, you'll use ZeRO-3 so make sure you pick those options.
+You'll be asked a few questions about your setup, and configure the following arguments.  It will ask whether you want to use a config file for DeepSpeed to which we recommend youshould answer no, then answer the following questions to generate a basic DeepSpeed config. It will generate a default config file and it will be automatically be used when you launch the training script.
+```bash
+accelerate launch your_script.py --{args_to_yourself_script}
+```
+Currently, Accelerate supports following config through the CLI:
 
 ```bash
 `zero_stage`: [0] Disabled, [1] optimizer state partitioning, [2] optimizer+gradient state partitioning and [3] optimizer+gradient+parameter partitioning
-`gradient_accumulation_steps`: Number of training steps to accumulate gradients before averaging and applying them. Pass the same value as you would pass via cmd argument else you will encounter mismatch error.
-`gradient_clipping`: Enable gradient clipping with value. Don't set this as you will be passing it via cmd arguments.
-`offload_optimizer_device`: [none] Disable optimizer offloading, [cpu] offload optimizer to CPU, [nvme] offload optimizer to NVMe SSD. Only applicable with ZeRO >= Stage-2. Set this as `none` as don't want to enable offloading.
-`offload_param_device`: [none] Disable parameter offloading, [cpu] offload parameters to CPU, [nvme] offload parameters to NVMe SSD. Only applicable with ZeRO Stage-3. Set this as `none` as don't want to enable offloading.
-`zero3_init_flag`: Decides whether to enable `deepspeed.zero.Init` for constructing massive models. Only applicable with ZeRO Stage-3. Set this to `True`.
-`zero3_save_16bit_model`: Decides whether to save 16-bit model weights when using ZeRO Stage-3. Set this to `True`.
-`mixed_precision`: `no` for FP32 training, `fp16` for FP16 mixed-precision training and `bf16` for BF16 mixed-precision training. Set this to `True`.
+`gradient_accumulation_steps`: Number of training steps to accumulate gradients before averaging and applying them.
+`gradient_clipping`: Enable gradient clipping with value.
+`offload_optimizer_device`: [none] Disable optimizer offloading, [cpu] offload optimizer to CPU, [nvme] offload optimizer to NVMe SSD. Only applicable with ZeRO >= Stage-2.
+`offload_optimizer_nvme_path`: Decides Nvme Path to offload optimizer states. If unspecified, will default to 'none'.
+`offload_param_device`: [none] Disable parameter offloading, [cpu] offload parameters to CPU, [nvme] offload parameters to NVMe SSD. Only applicable with ZeRO Stage-3.
+`offload_param_nvme_path`: Decides Nvme Path to offload parameters. If unspecified, will default to 'none'.
+`zero3_init_flag`: Decides whether to enable `deepspeed.zero.Init` for constructing massive models. Only applicable with ZeRO Stage-3.
+`zero3_save_16bit_model`: Decides whether to save 16-bit model weights when using ZeRO Stage-3.
+`mixed_precision`: `no` for FP32 training, `fp16` for FP16 mixed-precision training and `bf16` for BF16 mixed-precision training.
+`deepspeed_moe_layer_cls_names`: Comma-separated list of transformer Mixture-of-Experts (MoE) layer class names (case-sensitive) to wrap ,e.g, `MixtralSparseMoeBlock`, `Qwen2MoeSparseMoeBlock`, `JetMoEAttention,JetMoEBlock` ...
+`deepspeed_hostfile`: DeepSpeed hostfile for configuring multi-node compute resources.
+`deepspeed_exclusion_filter`: DeepSpeed exclusion filter string when using mutli-node setup.
+`deepspeed_inclusion_filter`: DeepSpeed inclusion filter string when using mutli-node setup.
+`deepspeed_multinode_launcher`: DeepSpeed multi-node launcher to use, e.g. `pdsh`, `standard`, `openmpi`, `mvapich`, `mpich`, `slurm`, `nossh` (requires DeepSpeed >= 0.14.5). If unspecified, will default to `pdsh`.
+`deepspeed_config_file`: path to the DeepSpeed config file in `json` format. See the next section for more details on this.
 ```
 
-Once this is done, the corresponding config should look like below and you can find it in config folder at [deepspeed_config.yaml](https://github.com/huggingface/peft/blob/main/examples/sft/configs/deepspeed_config.yaml):
+### Create DeepSpeed config with Deepspeed config file
+🤗 Accelerate Basic Config can meet your basic needs and is suitable for users who want a quick start. To be able to tweak more options, you will need to use a DeepSpeed config file.
 
-```yml
-compute_environment: LOCAL_MACHINE                                                                                                                                           
-debug: false
+Run follow command
+```bash
+accelerate config
+```
+Just as above, it will ask if you want use  a config file for deepspeed which you should answer yes. The key different is you need answer ```yes``` about question ```Do you want to specify a json file to a DeepSpeed config?```, and then you will be asked to provide the path to the config file. The config file from the specified path will be used automatically when you launch the training script as follow.
+```bash
+accelerate launch your_script.py --{args_to_yourself_script}
+```
+
+For instance, here is a ```default_config.yaml``` with DeepSpeed Config File:
+
+```bash
+compute_environment: LOCAL_MACHINE
 deepspeed_config:
-  deepspeed_multinode_launcher: standard
-  gradient_accumulation_steps: 4
-  offload_optimizer_device: none
-  offload_param_device: none
-  zero3_init_flag: true
-  zero3_save_16bit_model: true
-  zero_stage: 3
+ deepspeed_config_file: /home/ubuntu/accelerate/examples/configs/deepspeed_config_templates/zero_stage2_config.json #replace with your path to the deepspeed config file
+ zero3_init_flag: true
 distributed_type: DEEPSPEED
-downcast_bf16: 'no'
+fsdp_config: {}
 machine_rank: 0
+main_process_ip: null
+main_process_port: null
 main_training_function: main
-mixed_precision: bf16
+mixed_precision: fp16
 num_machines: 1
-num_processes: 8
-rdzv_backend: static
-same_network: true
-tpu_env: []
-tpu_use_cluster: false
-tpu_use_sudo: false
+num_processes: 2
 use_cpu: false
+```
+
+with the contents of ```zero_stage2_config.json``` being:
+```json
+{
+    "fp16": {
+        "enabled": true,
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    },
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": "auto",
+            "weight_decay": "auto",
+            "torch_adam": true,
+            "adam_w_mode": true
+        }
+    },
+    "scheduler": {
+        "type": "WarmupDecayLR",
+        "params": {
+            "warmup_min_lr": "auto",
+            "warmup_max_lr": "auto",
+            "warmup_num_steps": "auto",
+            "total_num_steps": "auto"
+        }
+    },
+    "zero_optimization": {
+        "stage": 2,
+        "allgather_partitions": true,
+        "allgather_bucket_size": 2e8,
+        "overlap_comm": true,
+        "reduce_scatter": true,
+        "reduce_bucket_size": "auto",
+        "contiguous_gradients": true
+    },
+    "gradient_accumulation_steps": 1,
+    "gradient_clipping": "auto",
+    "steps_per_print": 2000,
+    "train_batch_size": "auto",
+    "train_micro_batch_size_per_gpu": "auto",
+    "wall_clock_breakdown": false
+}
 ```
 
 ## Launch command
